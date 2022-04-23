@@ -7,7 +7,7 @@ from torchaudio.transforms import MelSpectrogram
 from tqdm import tqdm
 
 from net import SoundStream, WaveDiscriminator, STFTDiscriminator
-from loss import criterion_d, criterion_g
+from loss import adversarial_g_loss, adversarial_d_loss, feature_loss,spectral_reconstruction_loss
 from dataset import NSynthDataset
 from ops import evaluate
 
@@ -46,6 +46,16 @@ test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=collate
 
 optimizer_g = optim.Adam(soundstream.parameters(), lr=1e-4, betas=(0.5, 0.9))
 optimizer_d = optim.Adam(list(wave_disc.parameters()) + list(stft_disc.parameters()), lr=1e-4, betas=(0.5, 0.9))
+
+def criterion_g(x, G_x, features_stft_disc_x, features_wave_disc_x, features_stft_disc_G_x, features_wave_disc_G_x, lengths_wave, lengths_stft, sr, dev):
+    adv_g = LAMBDA_ADV*adversarial_g_loss(features_stft_disc_G_x, features_wave_disc_G_x, lengths_stft, lengths_wave)
+    f_loss = LAMBDA_FEAT*feature_loss(features_stft_disc_x, features_wave_disc_x, features_stft_disc_G_x, features_wave_disc_G_x, lengths_wave, lengths_stft)
+    spec_loss = LAMBDA_REC*spectral_reconstruction_loss(x, G_x, sr, dev)
+    return  adv_g + f_loss + spec_loss
+
+
+criterion_d = adversarial_d_loss
+
 
 best_model = soundstream.state_dict().copy()
 best_val_loss = float("inf")

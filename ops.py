@@ -1,10 +1,12 @@
 import contextlib
 import torch
+import tqdm.tdqm
 
 from loss import criterion_d, criterion_g
 
 def transform(x, device):
     return torch.stft(x.squeeze(), n_fft=1024, hop_length=256, window=torch.hann_window(window_length=1024, device=device), return_complex=False).permute(0, 3, 1, 2)
+
 
 
 def evaluate(generator, stft_disc, wave_disc, stft, x_loader, optimizer_g, optimizer_d, device, sr, train=False, history=None):
@@ -39,10 +41,10 @@ def evaluate(generator, stft_disc, wave_disc, stft, x_loader, optimizer_g, optim
             features_stft_disc_G_x = stft_disc(s_G_x)
             features_wave_disc_G_x = wave_disc(G_x)
             
-            loss_g = criterion_g(x, G_x, features_stft_disc_x, features_wave_disc_x, features_stft_disc_G_x, features_wave_disc_G_x, lengths_wave, lengths_stft)
+            loss_g = criterion_g(x, G_x, features_stft_disc_x, features_wave_disc_x, features_stft_disc_G_x, features_wave_disc_G_x, lengths_wave, lengths_stft, sr, device)
             tot_loss_g += loss_g.item()
             
-            if training:
+            if train:
                 # train generator
                 optimizer_g.zero_grad()
                 loss_g.backward()
@@ -59,9 +61,10 @@ def evaluate(generator, stft_disc, wave_disc, stft, x_loader, optimizer_g, optim
             
             tot_loss_d += loss_d.item()
             
-            optimizer_d.zero_grad()
-            loss_d.backward()
-            optimizer_d.step()
+            if train:
+                optimizer_d.zero_grad()
+                loss_d.backward()
+                optimizer_d.step()
 
             if history:
                 history["d"].append(tot_loss_d/len(x_loader))
